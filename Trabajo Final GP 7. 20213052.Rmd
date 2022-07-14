@@ -1,0 +1,597 @@
+---
+title: "Reporte oficial sobre el nivel de pobreza del Perú a nivel provincial"
+author: "Frank Napán Rodriguez"
+date: '2022-07-13'
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+**Introducción**
+
+El trabajo realizado en esta sección se centra en el IDH ---como variable dependiente--- y otras variables que podrían estar relacionadas; es decir, que las variables como el porcentaje de hogares de una provincia que no tiene alumbrado eléctrico por red pública (NoAlumbradoelectxred) y el porcentaje de hogares de una provinca que no tiene acceso a internet en su hogar ( NoConexióninter), podrían tener relación en el Indice de Desarrollo Humano. El indice de Desarrollo humano es un parámetro para cuantificar el avance promedio de un país en tres dimensiones: Esperanza de vida, Salud, acceso al conocimiento y el nivel de vida digno. Sobre estas dos últimas dimensiones, nuestras variables el no NoConexióninter y NoAlumbradoelectxred guardan afinidad.
+
+**Objetivos:**
+
+Son el de verificar si existe relación entre las variables independientes ---NoAlumbradoelectxred y NoConexióninter--- y la variable dependiente ---IDH---; es decir, si las variables independientes podrían explicar el comportamiento de la variable dependiente.
+
+**Glosa de variables:**
+
+-   IDH: Indice desarrollo Humano expresado en porcentaje por provincia en el territorio peruano.
+
+-   NoAlumbradoelectxred : Hogares que no tienen alumbrado eléctrico por red pública expresado en porcentaje por provincia en el territorio peruano.
+
+-   NoConexióninter : Hogares que no tienen conexión a internet expresado en provincia por region en el territorio peruano
+
+-   Porcentaje pobreza: Es el porcentaje de pobreza con el que cuenta una provincia en el territorio peruano.
+
+## Traemos la base de datos
+
+```{r pressure, echo=FALSE}
+library("rio")
+library("rmdformats")
+lkXLSX="https://github.com/FrankNapan/TRABAJO-FINAL/blob/main/Base.FNR.xlsx?raw=true"
+Data=import(lkXLSX)
+str(Data)
+
+```
+
+Veamos una hipotesis: El "IDH" en los distritos del Perú han sido afectados por 'el porcentaje de hogares que no cuentan con Alumbrado electrico por red', controlando por 'porcentaje de pobreza', la cual se representa en R así:
+
+```{r}
+modelo1= lm(Data$IDH ~ Data$NOAlumbradoelectxred+ Data$`Porcentaje pobreza`, data= Data)
+
+summary(modelo1)
+
+```
+
+Veamos el resultado:
+
+```{r}
+library(stargazer)
+reg1=lm(modelo1,data=Data)
+stargazer(reg1,type = "text",intercept.bottom = FALSE)
+```
+
+Ecuación del Modelo 1: IDH=64.106+ -0.197xNoAlumbradoelectxred+ -0.604xPorcentaje pobreza + ϵ
+
+```{r}
+modelo2= lm(Data$IDH ~ Data$NOAlumbradoelectxred+Data$NOConexióninter+ Data$`Porcentaje pobreza`, data= Data)
+
+summary(modelo2)
+
+```
+
+```{r}
+reg2=lm(modelo2,data=Data)
+stargazer(reg2,type = "text",intercept.bottom = FALSE)
+```
+
+Ecuación del Modelo 2: IDH=99.521+ -0.065xNoAlumbradoelectxred+ -0.431xNOConexióninter + -0.451xPorcentaje pobreza + ϵ
+
+```{r}
+stargazer(modelo1,modelo2, type ="text")
+```
+
+El modelo 2 es el que mayor Adjusted R2 tiene (0.836)
+
+```{r}
+tanova=anova(reg1,reg2)
+stargazer(tanova,type = 'text',summary = F,title = "Table de Análisis de Varianza")
+```
+
+Diagnósticos de la Regresión Para que se considere que el modelo de regresión elegido es el adecuado, debemos verificar algunos requisitos a posteriori:
+
+1.  Linealidad:
+
+```{r}
+plot(reg2,1)
+```
+
+2.Homocedasticidad ( La línea roja debe tener tendencia a la horizontalidad)
+
+```{r}
+plot(reg2,3)
+```
+
+Otra forma de observar la homocedasticidad
+
+```{r}
+library(lmtest)
+bptest(reg2)
+```
+
+La probabilidad de homocedasticidad es alta pues el (p-value mayor a 0.05.
+
+3.  Normal idad de los residuos (distribución de los residuos)
+
+```{r}
+plot(reg2, 2)
+
+
+```
+
+Es lineal, es una distribución mayormente normal
+
+```{r}
+shapiro.test(reg2$residuals)
+```
+
+El P-value es mayor a 0.05, por ende, hay normalidad
+
+4.  No Multicolinelidad ( variables independientes no son muy similares)
+
+```{r}
+library(DescTools)
+VIF(reg2) # > 5 es problematico(retirarlo del estudio)
+
+```
+
+Ninguno es mayor a 5; por ende, niguna es candidata a ser retirada
+
+5.  Valores influyentes:
+
+```{r}
+plot(reg2, 5)
+```
+
+No hay variables influyentes
+
+```{r}
+checkReg2=as.data.frame(influence.measures(reg2)$is.inf)
+head(checkReg2)
+
+```
+
+```{r}
+checkReg2[checkReg2$cook.d & checkReg2$hat,]
+
+```
+
+No hay valores que afecten la regresión.
+
+**Conclusiones:**
+
+Observamos que el modelo dos es la que mejor valor alcanzó, por ende es la que mejor explicaría el IDH. Este modelo lo explica a través de las variable falta de conexión a internet y falta de alumbrado por red púlbica.
+
+**PARTE 2. CLUSTERIZACIONES**
+
+**Introducción**: En esta sección observamos a las provincias de todo el Perú, que cuentan con variables que los podrían hacer parecidos entre sí o diferenciarse unos a otros, es decir, que si los clasificamos podrían, por ejemplo, dividirse entre provincias con mejor Indice de desarrollo humano, regular indice de desarrollo humano o el más bajo nivel de desarrollo. Estos indicadores nos ayudarían a visualizar en que parte del Perú hay mayor rezago en el servicio de red electrica, acceso a internet, y acceso a la educación.
+
+Obejtivos:
+
+Los objetivos de esta parte son el de clasificar a las provincias en grupos de acuerdo a sus varibles, asimismo, identificar en donde hay mayor rezago con respecto a sus variables.
+
+**Glosa de variables:**
+
+-   IDH: Indice desarrollo Humano expresado en porcentaje por provincia en el territorio peruano.
+
+-   NoAlumbradoelectxred : Hogares que no tienen alumbrado eléctrico por red pública expresado en porcentaje por provincia en el territorio peruano.
+
+-   NoConexióninter : Hogares que no tienen conexión a internet expresado en provincia por region en el territorio peruano
+
+-   Porcentaje pobreza: Es el porcentaje de pobreza con el que cuenta una provincia en el territorio peruano.
+
+-   InstiteducEnotrodist : Porcentaje de personas en una provincia estudiaron en instituciones educativos fuera del distrito donde residían.
+
+## Datos del GitHub
+
+```{r}
+library("rio")
+lkXLSX="https://github.com/FrankNapan/TRABAJO-FINAL/blob/main/Base.FNR.xlsx?raw=true"
+Data1=import(lkXLSX)
+
+
+lkXLSX2="https://github.com/camilachurampi03/Trabajo-Grupal/blob/main/basedata_CM.xlsx?raw=true"
+Data2=import(lkXLSX2)
+
+
+```
+
+```{r}
+str(Data1)
+str(Data2)
+```
+
+## Uniendo Data1 y Data2
+
+```{r}
+list(names(Data1), names(Data2))
+```
+
+```{r}
+keep=c(2,3,4,5)
+data=Data1[,keep]
+keep2=c(2,6)
+data2=Data2[,keep2]
+colnames(data2)=c("Provincia","InstiteducEnotrodist")
+```
+
+```{r}
+merge(data,data2)
+Alldata=merge(data, data2, by="Provincia")
+```
+
+```{r}
+str(Alldata)
+```
+
+```{r}
+summary(Alldata)
+```
+
+```{r}
+str(Alldata)
+```
+
+```{r}
+library(BBmisc)
+
+```
+
+```{r}
+boxplot(Alldata[,-1])
+```
+
+```{r}
+boxplot(normalize(Alldata[,-1],method='range',range=c(0,1)))
+
+```
+
+```{r}
+boxplot(normalize(Alldata[,-1], method= 'standardize'))
+```
+
+## 
+
+Nos quedaremos con la última opción. POR QUÉ?
+
+```{r}
+Alldata[,-1]=normalize(Alldata[,-1],method='standardize')
+Alldata=Alldata[complete.cases(Alldata),]
+```
+
+```{r}
+summary(Alldata)
+```
+
+Veamos Correlaciones
+
+```{r}
+cor(Alldata[,-1])
+```
+
+practiquemos cambio de monotonia:
+
+```{r}
+Alldata$InstiteducEnotrodist=-1*Alldata$InstiteducEnotrodist
+#ahora:
+cor(Alldata[,-1])
+```
+
+Preparemos la data (Alldata) para la clusterización
+
+```{r}
+DataClus=Alldata[,-1]
+row.names(DataClus)=Alldata$Provincia
+```
+
+\#\#Proceso de Clusterización:
+
+```{r}
+library("cluster")
+g.dist = daisy(DataClus, metric="gower")
+```
+
+\#\#Calcular el número de Clusters:
+
+Para Partición (pam)
+
+```{r}
+library("factoextra")
+fviz_nbclust(DataClus, pam,diss=g.dist,method= "gap_stat",k.max= 10, verbose = F)
+```
+
+Para Jerarquica - Aglomerativa (AGNES)
+
+```{r}
+fviz_nbclust(DataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func =
+"agnes")
+
+```
+
+Para Jerarquica - Divisiva (DIANA)
+
+```{r}
+fviz_nbclust(DataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "diana")
+```
+
+\#Evaluemos resultados
+
+```{r}
+
+###pam
+set.seed(123)
+grupos=4
+res.pam=pam(g.dist,k = grupos,cluster.only = F)
+DataClus$pam=res.pam$cluster
+```
+
+```{r}
+###agnes
+library(factoextra)
+library(ggplot2)
+res.agnes<- hcut(g.dist, k =grupos,hc_func='agnes',hc_method = "ward.D")
+DataClus$agnes=res.agnes$cluster
+```
+
+```{r}
+### diana
+res.diana <- hcut(g.dist, k = grupos,hc_func='diana')
+DataClus$diana=res.diana$cluster
+```
+
+Veamos cuál de ellos fue el mejor:
+
+PAM
+
+```{r}
+fviz_silhouette(res.pam)
+```
+
+AGNES
+
+```{r}
+fviz_silhouette(res.agnes)
+```
+
+DIANA
+
+```{r}
+fviz_silhouette(res.diana)
+```
+
+Concluímos que los datos fueron mejor clusterizados usando el método jerarquico divisivo (Diana)
+
+\#\#Graficando
+
+```{r}
+original=aggregate(.~ diana, data=DataClus,mean)
+original[order(original$NOAlumbradoelectxred),]
+
+```
+
+Observar si debemos ordenar los resultados de una mejor manera
+
+```{r}
+DataClus$diana=dplyr::recode(DataClus$diana, `4` = 1, `2`=4,`3`=3,`1`=2)
+```
+
+Proyectamos los casos en dos dimensiones (k es la cantidad de dimensiones)
+
+```{r}
+proyeccion = cmdscale(g.dist, k=2,add = T)
+DataClus$dim1 <- proyeccion$points[,1]
+DataClus$dim2 <- proyeccion$points[,2]
+base= ggplot(DataClus,aes(x=dim1, y=dim2,label=row.names(DataClus))) 
+base + geom_text(size=2, aes(color=as.factor(diana))) + labs(title = "DIANA")
+```
+
+\#\#\#Analisis factorial
+
+Buscaremos saber si el conjunto de vairbles explica el IDH
+
+```{r}
+keep3=c(2,3,4,5)
+data3=Data1[,keep3]
+keep4=c(2,6)
+data4=Data2[,keep4]
+
+colnames(data4) = c("Provincia","InstiteducEnotrodist")
+```
+
+```{r}
+merge(data3,data4)
+DATAAF=merge(data3, data4, by="Provincia")
+```
+
+Calculo de la matriz de correlación
+
+```{r}
+dontselect=c("Provincia","IDH")
+select=setdiff(names(DATAAF),dontselect) 
+theData=DATAAF[,select] # sin el IDH ni Provincia.
+```
+
+```{r}
+library(polycor)
+corMatrix=polycor::hetcor(theData)$correlations
+```
+
+```{r}
+library(ggcorrplot)
+ggcorrplot(corMatrix)
+```
+
+3.  Verificar si los datos permiten factorizar:
+
+```{r}
+library(psych)
+psych::KMO(corMatrix)
+```
+
+4.  Verificar si la matriz de correlaciones es adecuada
+
+Hnula: La matriz de correlacion es una matriz identidad
+
+```{r}
+cortest.bartlett(corMatrix,n=nrow(theData))$p.value>0.05
+```
+
+Hnula: La matriz de correlacion es una matriz singular
+
+```{r}
+library(matrixcalc)
+is.singular.matrix(corMatrix)
+```
+
+La matriz cumple con nuestra espectativa pues en ambos casos no se niega la matriz hipoótesis nula, es deicir, no es una matiz singular ni tampoco una matriz de indentidad
+
+Ahora determinaremos en cuantos factores o variables latentes podríamos redimensionar la data:
+
+```{r}
+fa.parallel(theData,fm = 'ML', fa = 'fa',correct = T)
+```
+
+El cuadro nos dice que las tres variables deberían organizarse en 1 factor.
+
+Redimensionar a numero menor de factores, como nos dijo la pruega anterior a uno solo. Lo cual era lo que esperabamos.
+
+```{r}
+library(GPArotation)
+resfa <- fa(theData,
+ nfactors = 1,
+ cor = 'mixed',
+ rotate = "varimax",
+ fm="minres")
+print(resfa$loadings)
+
+```
+
+Podemos observar que la varible que aporta más al factor es la falta de internet en los hogares ( NoConexióninter), pues tiene un valor de 0.921. La que le sigue es la falta de alumbrado por rede pública (NoAlumbradoelecxred)
+
+```{r}
+fa.diagram(resfa)
+```
+
+Observamos al IDH y alrededor todos los valores como giran entorno a ella
+
+¿Qué variables aportaron mas a los factores?
+
+```{r}
+sort(resfa$communality)
+```
+
+¿Qué variables contribuyen a mas de un factor?
+
+```{r}
+sort(resfa$complexity)
+```
+
+Observamos que los tres obtinen la unidad, por ende, diríamos que todas aportan de manera significativa.
+
+Posibles valores proyectados:
+
+```{r}
+library(BBmisc)
+library(dplyr)
+library()
+```
+
+```{r}
+as.data.frame(resfa$scores)%>%head()
+```
+
+```{r}
+Alldata$efa=resfa$scores
+ggplot(data=Alldata,aes(x=IDH ,y=efa)) + geom_point() + theme_minimal()
+
+```
+
+Observamos la correlación del IDH, el cual tiene similitud a la base cargada. La debilidad del gráfico es que va desde valores positivos a negativos. Notamos que los valores no son pareceidos por ello le daremos un rango del 0 al 10.
+
+Este sería el resultado de un rango 0 al 10
+
+```{r}
+Alldata$efa_ok=normalize(Alldata$efa, 
+ method = "range", 
+ margin=2, # by column
+ range = c(0, 10))
+```
+
+```{r}
+ggplot(data=Alldata,aes(x=IDH,y=efa_ok)) + geom_point() + theme_minimal()
+```
+
+Analisis confirmatorio
+
+```{r}
+model <- ' IDH =~ NOAlumbradoelectxred + NOConexióninter + InstiteducEnotrodist'
+```
+
+```{r}
+library(lavaan)
+theDataNorm=as.data.frame(scale(theData))
+
+```
+
+```{r}
+cfa_fit <- cfa(model, data=theDataNorm, 
+ std.lv=TRUE, 
+ missing="fiml")
+```
+
+```{r}
+allParamCFA=parameterEstimates(cfa_fit,standardized = T)
+allFitCFA=as.list(fitMeasures(cfa_fit))
+```
+
+```{r}
+allParamCFA[allParamCFA$op=="=~",]
+```
+
+Observamos que los valores en la columna est. son significativos.
+
+```{r}
+allFitCFA[c("chisq", "df", "pvalue")]
+```
+
+Observamos que el p value es mayor a 0.05, con lo que predecimos que en conjunto son buenos los indicadores.
+
+El Índice Tucker Lewi es mayor a 0.9?
+
+```{r}
+allFitCFA$tli
+```
+
+En el índice de tuker es mayor a 0.9, por ende, confirma lo anterior
+
+```{r}
+allFitCFA[c('rmsea.ci.lower','rmsea' ,'rmsea.ci.upper')]
+```
+
+Observamos que supera el 0.05 el rmsea, pero no son valores muy fuertes, es decir, no aprueba la teoria del IDH puede ser explicado por las otras variables dependientes.
+
+```{r}
+scorescfa=normalize(lavPredict(cfa_fit),
+ method = "range", 
+ margin=2, # by column
+ range = c(0, 10))
+```
+
+```{r}
+Alldata$cfa_ok=scorescfa
+
+```
+
+```{r}
+ggplot(data=Alldata,aes(x=cfa_ok,y=efa_ok)) + geom_point() + theme_minimal()
+```
+
+observamos que tener un valor derdano al 10.00 significa un buen valor, en la base no lo tendríamos ordenado de manera que sea sencillo ver que provincias se encuentran entre los mejores indices.
+
+Hemos podido observar que la clasificación en las provincias se pudo realizar mediante el método divisivo Diana, Asimismo, el número más ''apropiado'' de agrupar fue en 4 clusters. Ademá, el indicador que mayor aporta al factor del IDH es el de la concexión a internet. Por último, el anális factoria nos dice que los indicadores no pasan la prueba que demuestre que el IDH es explicado por los indicadores mencionados, por otro lado en el análisis de Tucker los indicadores pasan la prueba. Por ello diría que no se puede concluir si  las variables realmente aportan o no a explicare el IDH. En conclusión podemos afirmar que no se ha probado ni negado que las tres variables independientes expliquen el IDH (variable dependiente). 
